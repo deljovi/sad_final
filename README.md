@@ -6,7 +6,7 @@ LabSpace is a web and mobile app for managing laboratory room bookings and equip
 
 This setup serves the web app and API from the same existing Railway service, so the public API domain also opens the website. It avoids creating a second Railway app service, though normal usage of the existing Railway service can still incur charges. Keep the MySQL service private.
 
-Push this repository to the `main` branch. In the Railway API service, set the **Root Directory** to `/` (the repository root). The root `railway.json` builds the API and Expo web export, then starts the API server. The server serves the website at `/`, `/dashboard`, and `/feature`, while the API remains under `/api`.
+Push this repository to the `main` branch. In the Railway API service, set the **Root Directory** to `/` (the repository root) and the **Railway Config File** to `/railway.json`. The config file path is independent of the root directory. Both Railway config files use the combined build so a stale config-file selection still builds the web export and API. The server serves the website at `/`, `/dashboard`, and `/feature`, while the API remains under `/api`.
 
 ### MySQL
 
