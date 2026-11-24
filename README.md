@@ -32,7 +32,7 @@ npm run db:init
 
 This creates the tables but does not create student accounts or import old data. To create an initial lab-head account in an empty database, temporarily set `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL`, and `BOOTSTRAP_ADMIN_PASSWORD` in Railway, then run `npm run db:bootstrap-admin`. The password must be at least 12 characters; remove those temporary variables afterwards.
 
-Once deployed, open the API service's public HTTPS domain directly to see the website. `/health` should return `{"status":"ok", ...}` and `/api/...` remains the API. The web app defaults to the same-origin `/api` on a public domain; no separate Web service or `EXPO_PUBLIC_API_URL` is required.
+Once deployed, open the API service's public HTTPS domain directly to see the website. Railway uses `/health/live` to verify that the server is running; `/health` checks the database and reports its readiness. The web app defaults to the same-origin `/api` on a public domain; no separate Web service or `EXPO_PUBLIC_API_URL` is required.
 
 Do not commit `.env` files, passwords, database URLs, or JWT secrets. Railway variables are separate from local `.env` files.
 

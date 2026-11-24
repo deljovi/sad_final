@@ -22,10 +22,14 @@ const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:8081')
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json({ limit: '1mb' }));
 
+app.get('/health/live', (_req, res) => {
+  res.json({ status: 'ok', service: 'LabSpace API' });
+});
+
 app.get('/health', async (_req, res, next) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ status: 'ok', service: 'LabSpace API' });
+    res.json({ status: 'ok', service: 'LabSpace API', database: 'ok' });
   } catch (error) {
     next(error);
   }
