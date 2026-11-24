@@ -1,0 +1,14 @@
+{
+  "name": "sadfinal",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "npm ci --prefix oasis-backend && npm ci --prefix oasis-mobile && npm run build:web --prefix oasis-mobile",
+    "start": "npm --prefix oasis-backend run start",
+    "db:init": "npm --prefix oasis-backend run db:init",
+    "db:bootstrap-admin": "npm --prefix oasis-backend run db:bootstrap-admin"
+  }
+}

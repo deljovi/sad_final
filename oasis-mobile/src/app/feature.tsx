@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Spacing } from '@/constants/theme';
+import { useHydrated } from '@/hooks/use-hydrated';
 import { useTheme } from '@/hooks/use-theme';
 import { apiRequest } from '@/lib/api';
 
@@ -85,6 +86,28 @@ const statusNames: Record<string, string> = {
   PERLU_PERBAIKAN: 'Perlu perbaikan',
 };
 
+const roleNames: Record<string, string> = {
+  mahasiswa: 'Mahasiswa',
+  dosen: 'Dosen',
+  kepala_lab: 'Kepala Laboratorium',
+  laboran: 'Laboran',
+};
+
+const featureDescriptions: Record<string, string> = {
+  'Ketersediaan Ruang': 'Temukan ruang laboratorium dan lihat jadwal pemakaiannya.',
+  'Ketersediaan Alat': 'Periksa inventaris serta jumlah unit yang tersedia.',
+  'Ajukan Peminjaman': 'Kirim permohonan ruang atau peralatan untuk kegiatan lab.',
+  'Status Pengajuan': 'Pantau perkembangan permohonan peminjamanmu.',
+  'Riwayat Peminjaman': 'Lihat kembali pengajuan dan peminjaman sebelumnya.',
+  'Permohonan Peminjaman': 'Tinjau permohonan ruang dan peralatan dari pengguna.',
+  'Persetujuan Khusus': 'Tinjau permohonan peminjaman peralatan khusus.',
+  'Serah Terima Alat': 'Catat penyerahan alat yang telah disetujui.',
+  'Pengembalian & Pemeriksaan': 'Catat pengembalian dan kondisi peralatan lab.',
+  'Kelola Ruang': 'Atur daftar ruang dan status ketersediaan laboratorium.',
+  'Kelola Alat': 'Kelola inventaris, unit, dan kondisi peralatan.',
+  'Laporan Bulanan': 'Pantau ringkasan aktivitas laboratorium setiap bulan.',
+};
+
 function showMessage(title: string, message: string) {
   if (Platform.OS === 'web') window.alert(`${title}\n\n${message}`);
   else Alert.alert(title, message);
@@ -109,9 +132,12 @@ function formatDate(value: string) {
 
 export default function FeatureScreen() {
   const theme = useTheme();
-  const params = useLocalSearchParams<{ title?: string; accountType?: string; role?: string }>();
-  const title = params.title || 'Fitur OASIS';
-  const role = params.role || '';
+  const params = useLocalSearchParams<{ title?: string; role?: string }>();
+  const paramsReady = useHydrated();
+  const title = paramsReady ? params.title || 'Layanan Laboratorium' : 'Layanan Laboratorium';
+  const role = paramsReady ? String(params.role || '') : '';
+  const roleLabel = roleNames[role] || role.replace(/_/g, ' ');
+  const description = featureDescriptions[title] || 'Kelola layanan peminjaman laboratorium.';
   const [rooms, setRooms] = useState<Room[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -195,11 +221,12 @@ export default function FeatureScreen() {
   }, [title]);
 
   useEffect(() => {
+    if (!paramsReady) return;
     const timer = setTimeout(() => {
       loadData();
     }, 0);
     return () => clearTimeout(timer);
-  }, [loadData]);
+  }, [loadData, paramsReady]);
 
   async function perform(action: () => Promise<unknown>, successMessage: string) {
     setBusy(true);
@@ -754,10 +781,19 @@ export default function FeatureScreen() {
             <Text style={[styles.refreshText, { color: theme.primary }]}>Muat ulang</Text>
           </Pressable>
         </View>
-        <View style={[styles.headerCard, { backgroundColor: theme.primary }]}>
-          <Text style={styles.accountText}>{params.accountType || 'OASIS'}{role ? ` · ${role.replace(/_/g, ' ')}` : ''}</Text>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.headerCaption}>Data tersinkron dengan layanan OASIS.</Text>
+        <View style={styles.headerCard}>
+          <View style={styles.headerCopy}>
+            <View style={styles.headerEyebrowRow}>
+              <View style={styles.headerDot} />
+              <Text style={styles.accountText}>LABSPACE{roleLabel ? `  ·  ${roleLabel}` : ''}</Text>
+            </View>
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.headerCaption}>{description}</Text>
+          </View>
+          <View style={styles.headerMark}>
+            <Text style={styles.headerMarkLetter}>L</Text>
+            <Text style={styles.headerMarkCaption}>RUANG · ALAT</Text>
+          </View>
         </View>
         {loading ? (
           <View style={[styles.emptyCard, cardStyle]}><Text style={[styles.emptyText, { color: theme.textSecondary }]}>Memuat data...</Text></View>
@@ -774,19 +810,45 @@ export default function FeatureScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { width: '100%', maxWidth: 1000, alignSelf: 'center', paddingHorizontal: Spacing.four, paddingVertical: Spacing.three, gap: Spacing.three },
+  content: { width: '100%', maxWidth: 1040, alignSelf: 'center', paddingHorizontal: Spacing.four, paddingVertical: Spacing.three, gap: Spacing.three },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backButton: { height: 40, borderWidth: 1, borderRadius: 12, justifyContent: 'center', paddingHorizontal: 14 },
   backText: { fontSize: 14, fontWeight: '800' },
   refreshButton: { height: 40, borderRadius: 12, justifyContent: 'center', paddingHorizontal: 14 },
   refreshText: { fontSize: 13, fontWeight: '800' },
-  headerCard: { borderRadius: 20, padding: Spacing.four, minHeight: 128, justifyContent: 'center' },
-  accountText: { color: '#D9E7FA', fontSize: 12, marginBottom: 8, textTransform: 'capitalize' },
-  title: { color: '#FFFFFF', fontSize: 25, lineHeight: 32, fontWeight: '800' },
-  headerCaption: { color: '#D9E7FA', marginTop: 8, fontSize: 13 },
+  headerCard: {
+    minHeight: 174,
+    overflow: 'hidden',
+    borderRadius: 24,
+    backgroundColor: '#12343A',
+    padding: Spacing.four,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 18,
+  },
+  headerCopy: { flexGrow: 1, flexBasis: 280 },
+  headerEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  headerDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#A8E8D8' },
+  accountText: { color: '#A8E8D8', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  title: { color: '#FFFFFF', fontSize: 27, lineHeight: 34, fontWeight: '900' },
+  headerCaption: { color: '#BED3D0', marginTop: 7, fontSize: 13, lineHeight: 19, maxWidth: 620 },
+  headerMark: {
+    width: 112,
+    height: 112,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.09)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerMarkLetter: { color: '#A8E8D8', fontSize: 50, lineHeight: 56, fontWeight: '900' },
+  headerMarkCaption: { color: '#D5E7E1', fontSize: 7, fontWeight: '900', letterSpacing: 0.9, marginTop: 3 },
   stack: { gap: Spacing.three },
-  card: { borderWidth: 1, borderRadius: 16, padding: Spacing.three },
-  formCard: { borderWidth: 1, borderRadius: 18, padding: Spacing.three },
+  card: { borderWidth: 1, borderRadius: 18, padding: Spacing.three, shadowColor: '#183B3A', shadowOpacity: 0.035, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 1 },
+  formCard: { borderWidth: 1, borderRadius: 20, padding: Spacing.three, shadowColor: '#183B3A', shadowOpacity: 0.035, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 1 },
   rowBetween: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   cardTitle: { fontSize: 16, lineHeight: 22, fontWeight: '800' },
   secondary: { fontSize: 13, lineHeight: 19, marginTop: 4 },

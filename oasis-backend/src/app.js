@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
+import { fileURLToPath } from 'node:url';
 import { pool } from './config/database.js';
 
 import authRoutes from './routes/auth.js';
@@ -24,7 +25,7 @@ app.use(express.json({ limit: '1mb' }));
 app.get('/health', async (_req, res, next) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ status: 'ok', service: 'OASIS Backend' });
+    res.json({ status: 'ok', service: 'LabSpace API' });
   } catch (error) {
     next(error);
   }
@@ -37,6 +38,9 @@ app.use('/api/equipment', equipmentRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/approvals', approvalRoutes);
 app.use('/api/reports', reportRoutes);
+
+const webBuildPath = fileURLToPath(new URL('../../oasis-mobile/dist/', import.meta.url));
+app.use(express.static(webBuildPath, { extensions: ['html'] }));
 
 app.use((req, res) => {
   res.status(404).json({ message: `Route ${req.method} ${req.originalUrl} tidak ditemukan.` });
