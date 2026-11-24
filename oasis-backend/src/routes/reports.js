@@ -27,6 +27,7 @@ router.get('/monthly', async (req, res, next) => {
     const [equipmentStatus] = await pool.execute(
       `SELECT
          SUM(CASE WHEN availability_status = 'TERSEDIA' AND condition_status = 'BAIK' THEN 1 ELSE 0 END) AS available,
+         SUM(CASE WHEN availability_status = 'DIPESAN' THEN 1 ELSE 0 END) AS reserved,
          SUM(CASE WHEN availability_status = 'DIPINJAM' THEN 1 ELSE 0 END) AS borrowed,
          SUM(CASE WHEN condition_status IN ('RUSAK','PERLU_PERBAIKAN') THEN 1 ELSE 0 END) AS damaged,
          SUM(CASE WHEN condition_status = 'HILANG' THEN 1 ELSE 0 END) AS lost

@@ -71,7 +71,7 @@ type Report = {
   period: { month: number; year: number };
   room_loans: number;
   equipment_loans: number;
-  equipment: { available: number; borrowed: number; damaged: number; lost: number };
+  equipment: { available: number; reserved: number; borrowed: number; damaged: number; lost: number };
 };
 const statusNames: Record<string, string> = {
   MENUNGGU: 'Menunggu',
@@ -84,6 +84,7 @@ const statusNames: Record<string, string> = {
   DIBATALKAN: 'Dibatalkan',
   TERSEDIA: 'Tersedia',
   DIPINJAM: 'Dipinjam',
+  DIPESAN: 'Dipesan',
   TIDAK_TERSEDIA: 'Tidak tersedia',
   BAIK: 'Baik',
   RUSAK: 'Rusak',
@@ -437,7 +438,7 @@ export default function FeatureScreen() {
                 {badge({ value: unit.availability_status })}
                 <Pressable
                   accessibilityRole="button"
-                  disabled={unit.availability_status === 'DIPINJAM'}
+                  disabled={['DIPINJAM', 'DIPESAN'].includes(unit.availability_status)}
                   onPress={() => perform(
                     () => apiRequest(`/equipment/units/${unit.id}/status`, {
                       method: 'PATCH',
@@ -447,9 +448,11 @@ export default function FeatureScreen() {
                     }),
                     'Status unit diperbarui.',
                   )}>
-                  <Text style={[styles.link, { color: unit.availability_status === 'DIPINJAM' ? theme.textSecondary : theme.primary }]}>
+                  <Text style={[styles.link, { color: ['DIPINJAM', 'DIPESAN'].includes(unit.availability_status) ? theme.textSecondary : theme.primary }]}>
                     {unit.availability_status === 'DIPINJAM'
                       ? 'Sedang dipinjam'
+                      : unit.availability_status === 'DIPESAN'
+                        ? 'Dipesan oleh permohonan'
                       : unit.condition_status === 'BAIK' && unit.availability_status === 'TERSEDIA'
                         ? 'Tandai rusak'
                         : 'Pulihkan unit'}
@@ -762,6 +765,7 @@ export default function FeatureScreen() {
       ['Peminjaman ruang', report.room_loans],
       ['Peminjaman alat', report.equipment_loans],
       ['Unit tersedia', report.equipment.available || 0],
+      ['Dipesan oleh permohonan', report.equipment.reserved || 0],
       ['Sedang dipinjam', report.equipment.borrowed || 0],
       ['Rusak / perbaikan', report.equipment.damaged || 0],
       ['Hilang', report.equipment.lost || 0],

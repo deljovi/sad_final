@@ -61,6 +61,7 @@ router.post('/units', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (req, r
 });
 
 router.patch('/units/:id/status', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (req, res, next) => {
+  const connection = await pool.getConnection();
   try {
     const { condition_status, availability_status } = req.body;
     const conditions = ['BAIK', 'RUSAK', 'HILANG', 'PERLU_PERBAIKAN'];
@@ -71,12 +72,20 @@ router.patch('/units/:id/status', authorize('LABORAN', 'KEPALA_LABORATORIUM'), a
     if (availability_status && !availability.includes(availability_status)) {
       return res.status(400).json({ message: 'Status ketersediaan tidak valid.' });
     }
-    const [currentRows] = await pool.execute(
-      'SELECT condition_status, availability_status FROM equipment_units WHERE id = ?',
+    await connection.beginTransaction();
+    const [currentRows] = await connection.execute(
+      'SELECT condition_status, availability_status FROM equipment_units WHERE id = ? FOR UPDATE',
       [req.params.id],
     );
-    if (!currentRows[0]) return res.status(404).json({ message: 'Unit alat tidak ditemukan.' });
-    await pool.execute(
+    if (!currentRows[0]) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Unit alat tidak ditemukan.' });
+    }
+    if (['DIPESAN', 'DIPINJAM'].includes(currentRows[0].availability_status)) {
+      await connection.rollback();
+      return res.status(409).json({ message: 'Status unit yang dipesan atau dipinjam dikelola melalui alur peminjaman.' });
+    }
+    await connection.execute(
       'UPDATE equipment_units SET condition_status = ?, availability_status = ? WHERE id = ?',
       [
         condition_status || currentRows[0].condition_status,
@@ -84,9 +93,13 @@ router.patch('/units/:id/status', authorize('LABORAN', 'KEPALA_LABORATORIUM'), a
         req.params.id,
       ],
     );
+    await connection.commit();
     res.json({ message: 'Status unit alat diperbarui.' });
   } catch (error) {
+    await connection.rollback();
     next(error);
+  } finally {
+    connection.release();
   }
 });
 

@@ -17,6 +17,10 @@ await connection.query(
   `ALTER TABLE approvals
    MODIFY COLUMN approver_role ENUM('DOSEN_PENGAMPU','LABORAN','KEPALA_LABORATORIUM') NOT NULL`,
 );
+await connection.query(
+  `ALTER TABLE equipment_units
+   MODIFY COLUMN availability_status ENUM('TERSEDIA','DIPESAN','DIPINJAM','TIDAK_TERSEDIA') NOT NULL DEFAULT 'TERSEDIA'`,
+);
 for (const table of ['room_bookings', 'equipment_loans']) {
   for (const column of ['borrower_name', 'borrower_email']) {
     const [existingColumns] = await connection.execute(
@@ -29,5 +33,17 @@ for (const table of ['room_bookings', 'equipment_loans']) {
     }
   }
 }
+await connection.query(
+  `UPDATE equipment_units eu
+   JOIN loan_items li ON li.unit_id = eu.id
+   JOIN equipment_loans el ON el.id = li.loan_id
+   SET eu.availability_status = CASE
+     WHEN el.status = 'SEDANG_DIPINJAM' THEN 'DIPINJAM'
+     ELSE 'DIPESAN'
+   END
+   WHERE eu.availability_status = 'TERSEDIA'
+   AND eu.condition_status = 'BAIK'
+   AND el.status IN ('MENUNGGU_DOSEN','MENUNGGU_LABORAN','DISETUJUI','SEDANG_DIPINJAM')`,
+);
 await connection.end();
 console.log(`Database ${database} berhasil disiapkan.`);

@@ -26,6 +26,10 @@ router.post('/equipment', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (re
     if (durationDays > 3) {
       return res.status(400).json({ message: 'Peminjaman alat maksimal 3 hari.' });
     }
+    const unitIds = items.map((item) => Number(item?.unit_id));
+    if (unitIds.some((unitId) => !Number.isInteger(unitId) || unitId <= 0) || new Set(unitIds).size !== unitIds.length) {
+      return res.status(400).json({ message: 'Setiap unit hanya boleh dipilih satu kali.' });
+    }
 
     await connection.beginTransaction();
     const [lateRows] = await connection.execute(
@@ -48,20 +52,23 @@ router.post('/equipment', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (re
     }
     let hasSpecialItem = false;
 
-    for (const item of items) {
-      if (!item.unit_id) throw Object.assign(new Error('Setiap alat harus memiliki unit.'), { status: 400 });
+    for (const unitId of unitIds) {
       const [unitRows] = await connection.execute(
         `SELECT eu.id, eu.availability_status, eu.condition_status, et.category
          FROM equipment_units eu JOIN equipment_types et ON et.id = eu.equipment_type_id
          WHERE eu.id = ? FOR UPDATE`,
-        [item.unit_id],
+        [unitId],
       );
       if (!unitRows[0]) throw Object.assign(new Error('Unit alat tidak ditemukan.'), { status: 404 });
       const unit = unitRows[0];
       if (unit.availability_status !== 'TERSEDIA' || unit.condition_status !== 'BAIK') {
-        throw Object.assign(new Error(`Unit alat ${item.unit_id} tidak tersedia atau tidak dalam kondisi baik.`), { status: 409 });
+        throw Object.assign(new Error(`Unit alat ${unitId} tidak tersedia atau tidak dalam kondisi baik.`), { status: 409 });
       }
       if (unit.category === 'KHUSUS') hasSpecialItem = true;
+      await connection.execute(
+        `UPDATE equipment_units SET availability_status = 'DIPESAN' WHERE id = ?`,
+        [unitId],
+      );
     }
 
     const [loan] = await connection.execute(
@@ -80,10 +87,10 @@ router.post('/equipment', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (re
       ],
     );
 
-    for (const item of items) {
+    for (const unitId of unitIds) {
       await connection.execute(
         'INSERT INTO loan_items (loan_id, unit_id, quantity) VALUES (?, ?, 1)',
-        [loan.insertId, item.unit_id],
+        [loan.insertId, unitId],
       );
     }
 
@@ -150,6 +157,16 @@ router.post('/:loanId/handover', authorize('LABORAN', 'KEPALA_LABORATORIUM'), as
     if (!['DISETUJUI'].includes(loans[0].status)) {
       throw Object.assign(new Error('Peminjaman belum disetujui untuk serah terima.'), { status: 409 });
     }
+    const [units] = await connection.execute(
+      `SELECT eu.id, eu.availability_status, eu.condition_status
+       FROM equipment_units eu
+       JOIN loan_items li ON li.unit_id = eu.id
+       WHERE li.loan_id = ? FOR UPDATE`,
+      [req.params.loanId],
+    );
+    if (!units.length || units.some((unit) => unit.availability_status !== 'DIPESAN' || unit.condition_status !== 'BAIK')) {
+      throw Object.assign(new Error('Unit peminjaman tidak lagi tersedia untuk diserahterimakan.'), { status: 409 });
+    }
     await connection.execute(
       'UPDATE loan_items SET handed_over_at = NOW() WHERE loan_id = ?',
       [req.params.loanId],
@@ -184,10 +201,18 @@ router.post('/:loanId/return', authorize('LABORAN', 'KEPALA_LABORATORIUM'), asyn
     }
     await connection.beginTransaction();
     const [items] = await connection.execute(
-      'SELECT id, returned_at FROM loan_items WHERE loan_id = ? AND unit_id = ? FOR UPDATE',
+      `SELECT li.id, li.returned_at, el.status AS loan_status,
+              eu.availability_status
+       FROM loan_items li
+       JOIN equipment_loans el ON el.id = li.loan_id
+       JOIN equipment_units eu ON eu.id = li.unit_id
+       WHERE li.loan_id = ? AND li.unit_id = ? FOR UPDATE`,
       [req.params.loanId, unit_id],
     );
     if (!items[0]) throw Object.assign(new Error('Unit tidak termasuk transaksi peminjaman.'), { status: 404 });
+    if (items[0].loan_status !== 'SEDANG_DIPINJAM' || items[0].availability_status !== 'DIPINJAM') {
+      throw Object.assign(new Error('Unit belum tercatat sedang dipinjam.'), { status: 409 });
+    }
     if (items[0].returned_at) throw Object.assign(new Error('Unit ini sudah dikembalikan.'), { status: 409 });
 
     await connection.execute(

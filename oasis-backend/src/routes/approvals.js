@@ -5,6 +5,17 @@ import { authenticate, authorize } from '../middleware/auth.js';
 const router = express.Router();
 router.use(authenticate);
 
+async function releaseReservedUnits(connection, loanId) {
+  await connection.execute(
+    `UPDATE equipment_units eu
+     JOIN loan_items li ON li.unit_id = eu.id
+     SET eu.availability_status = 'TERSEDIA'
+     WHERE li.loan_id = ? AND eu.availability_status = 'DIPESAN'
+     AND eu.condition_status = 'BAIK'`,
+    [loanId],
+  );
+}
+
 router.get('/', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
@@ -84,46 +95,66 @@ router.post('/:loanId/approve', authorize('LABORAN', 'KEPALA_LABORATORIUM'), asy
 });
 
 router.post('/:loanId/reject', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (req, res, next) => {
+  const connection = await pool.getConnection();
   try {
     const { note } = req.body;
-    if (!note?.trim()) return res.status(400).json({ message: 'Catatan penolakan wajib diisi.' });
-    const [loanRows] = await pool.execute(
-      'SELECT status FROM equipment_loans WHERE id = ?',
+    if (!note?.trim()) {
+      return res.status(400).json({ message: 'Catatan penolakan wajib diisi.' });
+    }
+    await connection.beginTransaction();
+    const [loanRows] = await connection.execute(
+      'SELECT status FROM equipment_loans WHERE id = ? FOR UPDATE',
       [req.params.loanId],
     );
-    if (!loanRows[0]) return res.status(404).json({ message: 'Transaksi peminjaman tidak ditemukan.' });
+    if (!loanRows[0]) {
+      throw Object.assign(new Error('Transaksi peminjaman tidak ditemukan.'), { status: 404 });
+    }
     if (loanRows[0].status === 'MENUNGGU_DOSEN') {
-      const [approvalResult] = await pool.execute(
+      const [approvalResult] = await connection.execute(
         `UPDATE approvals SET approver_id = ?, decision = 'DITOLAK',
          note = ?, decided_at = NOW()
          WHERE loan_id = ? AND approver_role = 'DOSEN_PENGAMPU' AND decision = 'MENUNGGU'`,
         [req.user.sub, note.trim(), req.params.loanId],
       );
       if (approvalResult.affectedRows === 0) {
-        return res.status(409).json({ message: 'Permohonan ini sudah diproses.' });
+        throw Object.assign(new Error('Permohonan ini sudah diproses.'), { status: 409 });
       }
-      await pool.execute(
+      const [result] = await connection.execute(
         `UPDATE equipment_loans SET status = 'DITOLAK', rejection_reason = ?, updated_at = NOW()
          WHERE id = ? AND status = 'MENUNGGU_DOSEN'`,
         [note.trim(), req.params.loanId],
       );
+      if (result.affectedRows === 0) {
+        throw Object.assign(new Error('Status permohonan telah berubah. Muat ulang daftar.'), { status: 409 });
+      }
+      await releaseReservedUnits(connection, req.params.loanId);
+      await connection.commit();
       return res.json({ message: 'Permohonan peminjaman khusus ditolak.' });
     }
     if (loanRows[0].status !== 'MENUNGGU_LABORAN') {
-      return res.status(409).json({ message: 'Permohonan ini tidak sedang menunggu keputusan.' });
+      throw Object.assign(new Error('Permohonan ini tidak sedang menunggu keputusan.'), { status: 409 });
     }
-    await pool.execute(
+    const [result] = await connection.execute(
       `UPDATE equipment_loans SET status = 'DITOLAK', rejection_reason = ?, updated_at = NOW()
        WHERE id = ? AND status = 'MENUNGGU_LABORAN'`,
       [note.trim(), req.params.loanId],
     );
+    if (result.affectedRows === 0) {
+      throw Object.assign(new Error('Status permohonan telah berubah. Muat ulang daftar.'), { status: 409 });
+    }
+    await releaseReservedUnits(connection, req.params.loanId);
+    await connection.commit();
     res.json({
       message: req.user.role === 'LABORAN'
         ? 'Permohonan ditolak oleh laboran.'
         : 'Permohonan ditolak oleh kepala laboratorium.',
     });
   } catch (error) {
+    await connection.rollback();
+    if (error.status) return res.status(error.status).json({ message: error.message });
     next(error);
+  } finally {
+    connection.release();
   }
 });
 
