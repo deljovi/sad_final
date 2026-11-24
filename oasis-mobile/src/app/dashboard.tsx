@@ -17,7 +17,8 @@ const menuDetails: Record<string, { code: string; description: string; tint: str
   'Ajukan Peminjaman': { code: '+', description: 'Ajukan peminjaman ruang atau inventaris lab.', tint: '#FFF0D8' },
   'Status Pengajuan': { code: 'ST', description: 'Pantau proses dan keputusan pengajuanmu.', tint: '#E9E5FA' },
   'Riwayat Peminjaman': { code: 'RJ', description: 'Tinjau peminjaman yang pernah dilakukan.', tint: '#E2F0FA' },
-  'Permohonan Peminjaman': { code: 'PS', description: 'Tinjau dan proses permintaan peminjaman.', tint: '#FFF0D8' },
+  'Permohonan Ruang': { code: 'RG', description: 'Catat dan proses pengajuan peminjaman ruang.', tint: '#DDF3EF' },
+  'Permohonan Alat': { code: 'AL', description: 'Catat dan proses pengajuan peminjaman alat.', tint: '#E8EEFF' },
   'Persetujuan Khusus': { code: 'PK', description: 'Proses persetujuan untuk peminjaman alat khusus.', tint: '#E9E5FA' },
   'Serah Terima Alat': { code: 'ST', description: 'Catat serah terima alat yang sudah disetujui.', tint: '#E2F0FA' },
   'Pengembalian & Pemeriksaan': { code: 'KB', description: 'Catat pengembalian dan kondisi peralatan.', tint: '#DDF3EF' },
@@ -44,7 +45,8 @@ export default function DashboardScreen() {
     .toUpperCase();
   const menus: string[] = ['laboran', 'kepala_lab'].includes(role)
     ? [
-        'Permohonan Peminjaman',
+        'Permohonan Ruang',
+        'Permohonan Alat',
         'Persetujuan Khusus',
         'Serah Terima Alat',
         'Pengembalian & Pemeriksaan',

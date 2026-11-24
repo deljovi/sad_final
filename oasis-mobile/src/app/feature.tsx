@@ -103,6 +103,8 @@ const featureDescriptions: Record<string, string> = {
   'Ajukan Peminjaman': 'Kirim permohonan ruang atau peralatan untuk kegiatan lab.',
   'Status Pengajuan': 'Pantau perkembangan permohonan peminjamanmu.',
   'Riwayat Peminjaman': 'Lihat kembali pengajuan dan peminjaman sebelumnya.',
+  'Permohonan Ruang': 'Catat dan proses permohonan ruang atas nama calon peminjam.',
+  'Permohonan Alat': 'Catat dan proses permohonan alat atas nama calon peminjam.',
   'Permohonan Peminjaman': 'Tinjau permohonan ruang dan peralatan dari pengguna.',
   'Persetujuan Khusus': 'Tinjau permohonan peminjaman peralatan khusus.',
   'Serah Terima Alat': 'Catat penyerahan alat yang telah disetujui.',
@@ -180,6 +182,7 @@ export default function FeatureScreen() {
       const needsRooms = [
         'Ketersediaan Ruang',
         'Ajukan Peminjaman',
+        'Permohonan Ruang',
         'Permohonan Peminjaman',
         'Status Pengajuan',
         'Riwayat Peminjaman',
@@ -188,6 +191,7 @@ export default function FeatureScreen() {
       const needsEquipment = [
         'Ketersediaan Alat',
         'Ajukan Peminjaman',
+        'Permohonan Alat',
         'Permohonan Peminjaman',
         'Kelola Alat',
       ].includes(title);
@@ -200,14 +204,14 @@ export default function FeatureScreen() {
         );
       }
       if (needsEquipment) tasks.push(apiRequest<Equipment[]>('/equipment').then(setEquipment));
-      if (['Ajukan Peminjaman', 'Permohonan Peminjaman', 'Kelola Alat'].includes(title)) {
+      if (['Ajukan Peminjaman', 'Permohonan Alat', 'Permohonan Peminjaman', 'Kelola Alat'].includes(title)) {
         const availableOnly = title !== 'Kelola Alat';
         tasks.push(apiRequest<Unit[]>(`/equipment/units${availableOnly ? '?available=true' : ''}`).then(setUnits));
       }
       if (['Status Pengajuan', 'Riwayat Peminjaman'].includes(title)) {
         tasks.push(apiRequest<Loan[]>('/loans/my').then(setLoans));
       }
-      if (['Permohonan Peminjaman', 'Persetujuan Khusus', 'Serah Terima Alat', 'Pengembalian & Pemeriksaan'].includes(title)) {
+      if (['Permohonan Alat', 'Permohonan Peminjaman', 'Persetujuan Khusus', 'Serah Terima Alat', 'Pengembalian & Pemeriksaan'].includes(title)) {
         tasks.push(apiRequest<Loan[]>('/approvals').then(setLoans));
       }
       if (title === 'Laporan Bulanan') {
@@ -517,7 +521,18 @@ export default function FeatureScreen() {
             );
           })}
         </View>
-        {!availableUnits.length && <Text style={[styles.detail, { color: theme.textSecondary }]}>Tidak ada unit yang tersedia saat ini.</Text>}
+        {!availableUnits.length && (
+          <View>
+            <Text style={[styles.detail, { color: theme.textSecondary }]}>
+              Belum ada unit tersedia. Tambahkan inventaris dan kode unit melalui menu Kelola Alat.
+            </Text>
+            {button({
+              label: 'Buka Kelola Alat',
+              secondary: true,
+              onPress: () => router.push({ pathname: '/feature', params: { title: 'Kelola Alat', role } }),
+            })}
+          </View>
+        )}
         <View style={styles.formGrid}>
           {field({ label: 'Tanggal pinjam', value: loanStart, onChange: setLoanStart, placeholder: 'YYYY-MM-DD', type: 'date' })}
           {field({ label: 'Tanggal kembali', value: loanEnd, onChange: setLoanEnd, placeholder: 'YYYY-MM-DD', type: 'date' })}
@@ -810,6 +825,12 @@ export default function FeatureScreen() {
     }
     if (title === 'Status Pengajuan' || title === 'Riwayat Peminjaman') {
       return <View style={styles.stack}>{bookingList()}{loanList()}</View>;
+    }
+    if (title === 'Permohonan Ruang') {
+      return <View style={styles.stack}>{roomBookingForm()}{bookingList({ admin: true })}</View>;
+    }
+    if (title === 'Permohonan Alat') {
+      return <View style={styles.stack}>{equipmentLoanForm()}{loanList({ admin: true })}</View>;
     }
     if (title === 'Permohonan Peminjaman') {
       return (

@@ -45,5 +45,71 @@ await connection.query(
    AND eu.condition_status = 'BAIK'
    AND el.status IN ('MENUNGGU_DOSEN','MENUNGGU_LABORAN','DISETUJUI','SEDANG_DIPINJAM')`,
 );
+const starterInventory = [
+  { name: 'Kamera', category: 'BIASA', prefix: 'KAM', quantity: 10 },
+  { name: 'VR Headset', category: 'KHUSUS', prefix: 'VRH', quantity: 6 },
+  { name: 'Router Kit', category: 'BIASA', prefix: 'RTR', quantity: 19 },
+];
+const [inventorySeedRows] = await connection.execute(
+  'SELECT name FROM app_migrations WHERE name = ?',
+  ['starter-inventory'],
+);
+if (inventorySeedRows.length === 0) {
+  for (const item of starterInventory) {
+    await connection.execute(
+      `INSERT INTO equipment_types (name, category)
+       SELECT ?, ? WHERE NOT EXISTS (
+         SELECT 1 FROM equipment_types WHERE name = ?
+       )`,
+      [item.name, item.category, item.name],
+    );
+    const [typeRows] = await connection.execute(
+      'SELECT id FROM equipment_types WHERE name = ? ORDER BY id LIMIT 1',
+      [item.name],
+    );
+    if (!typeRows[0]) {
+      throw new Error(`Jenis alat ${item.name} tidak dapat disiapkan.`);
+    }
+    const typeId = typeRows[0].id;
+    await connection.execute(
+      'UPDATE equipment_types SET category = ?, active = TRUE WHERE id = ?',
+      [item.category, typeId],
+    );
+    const [unitCounts] = await connection.execute(
+      `SELECT COUNT(*) AS total FROM equipment_units
+       WHERE equipment_type_id = ? AND availability_status = 'TERSEDIA'
+       AND condition_status = 'BAIK'`,
+      [typeId],
+    );
+    const [existingCodes] = await connection.execute(
+      'SELECT unit_code FROM equipment_units WHERE unit_code LIKE ?',
+      [`${item.prefix}-%`],
+    );
+    const usedCodes = new Set(existingCodes.map((unit) => String(unit.unit_code).toUpperCase()));
+    let available = Number(unitCounts[0].total);
+    let serial = 1;
+    while (available < item.quantity) {
+      let unitCode = `${item.prefix}-${String(serial).padStart(3, '0')}`;
+      while (usedCodes.has(unitCode.toUpperCase())) {
+        serial += 1;
+        unitCode = `${item.prefix}-${String(serial).padStart(3, '0')}`;
+      }
+      serial += 1;
+      const [result] = await connection.execute(
+        `INSERT INTO equipment_units (equipment_type_id, unit_code)
+         SELECT ?, ? WHERE NOT EXISTS (
+           SELECT 1 FROM equipment_units WHERE unit_code = ?
+         )`,
+        [typeId, unitCode, unitCode],
+      );
+      usedCodes.add(unitCode.toUpperCase());
+      available += result.affectedRows;
+    }
+  }
+  await connection.execute(
+    'INSERT INTO app_migrations (name) VALUES (?)',
+    ['starter-inventory'],
+  );
+}
 await connection.end();
 console.log(`Database ${database} berhasil disiapkan.`);
