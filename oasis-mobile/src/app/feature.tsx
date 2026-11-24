@@ -50,12 +50,18 @@ type Loan = {
   status: string;
   loan_type: string;
   borrower_name?: string;
+  borrower_email?: string;
+  applicant_name?: string;
+  applicant_email?: string;
   items: LoanItem[] | string | null;
 };
 type Booking = {
   id: number;
   room_name: string;
-  borrower_name: string;
+  borrower_name?: string | null;
+  borrower_email?: string | null;
+  applicant_name?: string | null;
+  applicant_email?: string | null;
   start_at: string;
   end_at: string;
   purpose: string;
@@ -149,6 +155,8 @@ export default function FeatureScreen() {
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [purpose, setPurpose] = useState('');
+  const [borrowerName, setBorrowerName] = useState('');
+  const [borrowerEmail, setBorrowerEmail] = useState('');
   const [rejectionNote, setRejectionNote] = useState('');
   const [loanStart, setLoanStart] = useState('');
   const [loanEnd, setLoanEnd] = useState('');
@@ -179,6 +187,7 @@ export default function FeatureScreen() {
       const needsEquipment = [
         'Ketersediaan Alat',
         'Ajukan Peminjaman',
+        'Permohonan Peminjaman',
         'Kelola Alat',
       ].includes(title);
 
@@ -190,8 +199,9 @@ export default function FeatureScreen() {
         );
       }
       if (needsEquipment) tasks.push(apiRequest<Equipment[]>('/equipment').then(setEquipment));
-      if (title === 'Ajukan Peminjaman' || title === 'Kelola Alat') {
-        tasks.push(apiRequest<Unit[]>(`/equipment/units${title === 'Ajukan Peminjaman' ? '?available=true' : ''}`).then(setUnits));
+      if (['Ajukan Peminjaman', 'Permohonan Peminjaman', 'Kelola Alat'].includes(title)) {
+        const availableOnly = title !== 'Kelola Alat';
+        tasks.push(apiRequest<Unit[]>(`/equipment/units${availableOnly ? '?available=true' : ''}`).then(setUnits));
       }
       if (['Status Pengajuan', 'Riwayat Peminjaman'].includes(title)) {
         tasks.push(apiRequest<Loan[]>('/loans/my').then(setLoans));
@@ -241,8 +251,12 @@ export default function FeatureScreen() {
   }
 
   async function submitRoomBooking() {
-    if (!selectedRoom || !bookingDate || !startTime || !endTime || !purpose.trim()) {
-      showMessage('Form belum lengkap', 'Pilih ruang dan lengkapi tanggal, waktu, serta tujuan.');
+    if (!borrowerName.trim() || !borrowerEmail.trim() || !selectedRoom || !bookingDate || !startTime || !endTime || !purpose.trim()) {
+      showMessage('Form belum lengkap', 'Isi nama dan email peminjam, pilih ruang, lalu lengkapi jadwal dan tujuan.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(borrowerEmail.trim())) {
+      showMessage('Email tidak valid', 'Masukkan email calon peminjam yang benar.');
       return;
     }
     const start = new Date(`${bookingDate}T${startTime}:00`);
@@ -254,22 +268,38 @@ export default function FeatureScreen() {
     const succeeded = await perform(
       () => apiRequest(`/rooms/${selectedRoom}/bookings`, {
         method: 'POST',
-        body: { start_at: start.toISOString(), end_at: end.toISOString(), purpose: purpose.trim() },
+        body: {
+          borrower_name: borrowerName.trim(),
+          borrower_email: borrowerEmail.trim(),
+          start_at: start.toISOString(),
+          end_at: end.toISOString(),
+          purpose: purpose.trim(),
+        },
       }),
       'Pengajuan ruang telah dikirim.',
     );
-    if (succeeded) setPurpose('');
+    if (succeeded) {
+      setBorrowerName('');
+      setBorrowerEmail('');
+      setPurpose('');
+    }
   }
 
   async function submitEquipmentLoan() {
-    if (!loanStart || !loanEnd || !loanPurpose.trim() || selectedUnits.length === 0) {
-      showMessage('Form belum lengkap', 'Pilih minimal satu unit dan lengkapi tanggal serta tujuan.');
+    if (!borrowerName.trim() || !borrowerEmail.trim() || !loanStart || !loanEnd || !loanPurpose.trim() || selectedUnits.length === 0) {
+      showMessage('Form belum lengkap', 'Isi nama dan email peminjam, pilih minimal satu alat, lalu lengkapi tanggal dan tujuan.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(borrowerEmail.trim())) {
+      showMessage('Email tidak valid', 'Masukkan email calon peminjam yang benar.');
       return;
     }
     const succeeded = await perform(
       () => apiRequest('/loans/equipment', {
         method: 'POST',
         body: {
+          borrower_name: borrowerName.trim(),
+          borrower_email: borrowerEmail.trim(),
           start_date: loanStart,
           due_date: loanEnd,
           purpose: loanPurpose.trim(),
@@ -279,6 +309,8 @@ export default function FeatureScreen() {
       'Pengajuan alat telah dikirim.',
     );
     if (succeeded) {
+      setBorrowerName('');
+      setBorrowerEmail('');
       setLoanPurpose('');
       setSelectedUnits([]);
     }
@@ -435,7 +467,10 @@ export default function FeatureScreen() {
     const activeRooms = rooms.filter((room) => room.active);
     return (
       <View style={[styles.formCard, cardStyle]}>
-        <Text style={[styles.cardTitle, { color: theme.text }]}>Ajukan peminjaman ruang</Text>
+        <Text style={[styles.cardTitle, { color: theme.text }]}>Catat permohonan ruang</Text>
+        <Text style={[styles.secondary, { color: theme.textSecondary }]}>Masukkan identitas calon peminjam.</Text>
+        {field({ label: 'Nama calon peminjam', value: borrowerName, onChange: setBorrowerName, placeholder: 'Nama lengkap' })}
+        {field({ label: 'Email calon peminjam', value: borrowerEmail, onChange: setBorrowerEmail, placeholder: 'nama@kampus.ac.id' })}
         <View style={styles.chipRow}>
           {activeRooms.map((room) => (
             <Pressable
@@ -461,7 +496,10 @@ export default function FeatureScreen() {
     const availableUnits = units.filter((unit) => unit.availability_status === 'TERSEDIA' && unit.condition_status === 'BAIK');
     return (
       <View style={[styles.formCard, cardStyle]}>
-        <Text style={[styles.cardTitle, { color: theme.text }]}>Pilih unit alat</Text>
+        <Text style={[styles.cardTitle, { color: theme.text }]}>Catat permohonan alat</Text>
+        <Text style={[styles.secondary, { color: theme.textSecondary }]}>Masukkan identitas calon peminjam.</Text>
+        {field({ label: 'Nama calon peminjam', value: borrowerName, onChange: setBorrowerName, placeholder: 'Nama lengkap' })}
+        {field({ label: 'Email calon peminjam', value: borrowerEmail, onChange: setBorrowerEmail, placeholder: 'nama@kampus.ac.id' })}
         <Text style={[styles.secondary, { color: theme.textSecondary }]}>Pilih satu atau beberapa unit yang tersedia.</Text>
         <View style={styles.chipRow}>
           {availableUnits.map((unit) => {
@@ -498,7 +536,9 @@ export default function FeatureScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={[styles.cardTitle, { color: theme.text }]}>{booking.room_name}</Text>
                 <Text style={[styles.secondary, { color: theme.textSecondary }]}>
-                  {booking.borrower_name} · {formatDate(booking.start_at)}
+                  {booking.applicant_name || booking.borrower_name || 'Calon peminjam'}
+                  {(booking.applicant_email || booking.borrower_email) ? ` · ${booking.applicant_email || booking.borrower_email}` : ''}
+                  {' · '}{formatDate(booking.start_at)}
                 </Text>
               </View>
               {badge({ value: booking.status })}
@@ -541,7 +581,9 @@ export default function FeatureScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={[styles.cardTitle, { color: theme.text }]}>Peminjaman #{loan.id}</Text>
                 <Text style={[styles.secondary, { color: theme.textSecondary }]}>
-                  {loan.borrower_name ? `${loan.borrower_name} · ` : ''}{loan.start_date} s.d. {loan.due_date}
+                  {loan.applicant_name || loan.borrower_name || 'Calon peminjam'}
+                  {(loan.applicant_email || loan.borrower_email) ? ` · ${loan.applicant_email || loan.borrower_email}` : ''}
+                  {' · '}{loan.start_date} s.d. {loan.due_date}
                 </Text>
               </View>
               {badge({ value: loan.status })}
@@ -766,7 +808,14 @@ export default function FeatureScreen() {
       return <View style={styles.stack}>{bookingList()}{loanList()}</View>;
     }
     if (title === 'Permohonan Peminjaman') {
-      return <View style={styles.stack}>{bookingList({ admin: true })}{loanList({ admin: true })}</View>;
+      return (
+        <View style={styles.stack}>
+          {roomBookingForm()}
+          {equipmentLoanForm()}
+          {bookingList({ admin: true })}
+          {loanList({ admin: true })}
+        </View>
+      );
     }
     if (title === 'Persetujuan Khusus') return loanList({ admin: true, specialOnly: true });
     if (title === 'Serah Terima Alat') return handoverView();

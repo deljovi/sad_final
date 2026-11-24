@@ -8,7 +8,8 @@ router.use(authenticate);
 router.get('/', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT el.*, u.name AS borrower_name,
+      `SELECT el.*, COALESCE(el.borrower_name, u.name) AS applicant_name,
+              COALESCE(el.borrower_email, u.email) AS applicant_email,
               (SELECT JSON_ARRAYAGG(JSON_OBJECT(
                 'unit_id', li.unit_id,
                 'unit_code', eu.unit_code,

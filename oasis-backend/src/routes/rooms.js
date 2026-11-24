@@ -23,7 +23,9 @@ router.get('/bookings', async (req, res, next) => {
   try {
     const staffRoles = ['LABORAN', 'KEPALA_LABORATORIUM'];
     const [rows] = await pool.execute(
-      `SELECT rb.*, r.name AS room_name, u.name AS borrower_name
+      `SELECT rb.*, r.name AS room_name,
+              COALESCE(rb.borrower_name, u.name) AS applicant_name,
+              COALESCE(rb.borrower_email, u.email) AS applicant_email
        FROM room_bookings rb
        JOIN rooms r ON r.id = rb.room_id
        JOIN users u ON u.id = rb.user_id
@@ -101,11 +103,16 @@ router.post('/:id/schedules', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async
   }
 });
 
-router.post('/:id/bookings', authorize('MAHASISWA', 'DOSEN'), async (req, res, next) => {
+router.post('/:id/bookings', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (req, res, next) => {
   try {
-    const { start_at, end_at, purpose } = req.body;
-    if (!start_at || !end_at || !purpose?.trim()) {
-      return res.status(400).json({ message: 'Waktu peminjaman dan tujuan wajib diisi.' });
+    const { start_at, end_at, purpose, borrower_name, borrower_email } = req.body;
+    const borrowerName = typeof borrower_name === 'string' ? borrower_name.trim() : '';
+    const borrowerEmail = typeof borrower_email === 'string' ? borrower_email.trim().toLowerCase() : '';
+    if (!borrowerName || !borrowerEmail || !start_at || !end_at || typeof purpose !== 'string' || !purpose.trim()) {
+      return res.status(400).json({ message: 'Nama, email peminjam, waktu, dan tujuan wajib diisi.' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(borrowerEmail)) {
+      return res.status(400).json({ message: 'Alamat email peminjam tidak valid.' });
     }
     const start = new Date(start_at);
     const end = new Date(end_at);
@@ -144,9 +151,10 @@ router.post('/:id/bookings', authorize('MAHASISWA', 'DOSEN'), async (req, res, n
     }
 
     const [result] = await pool.execute(
-      `INSERT INTO room_bookings (room_id, user_id, start_at, end_at, purpose)
-       VALUES (?, ?, ?, ?, ?)`,
-      [req.params.id, req.user.sub, mysqlStart, mysqlEnd, purpose.trim()],
+      `INSERT INTO room_bookings
+       (room_id, user_id, borrower_name, borrower_email, start_at, end_at, purpose)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [req.params.id, req.user.sub, borrowerName, borrowerEmail, mysqlStart, mysqlEnd, purpose.trim()],
     );
     res.status(201).json({ message: 'Pengajuan peminjaman ruang berhasil dikirim.', id: result.insertId });
   } catch (error) {
@@ -157,7 +165,8 @@ router.post('/:id/bookings', authorize('MAHASISWA', 'DOSEN'), async (req, res, n
 router.get('/:id/bookings', async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT rb.*, u.name AS borrower_name
+      `SELECT rb.*, COALESCE(rb.borrower_name, u.name) AS applicant_name,
+              COALESCE(rb.borrower_email, u.email) AS applicant_email
        FROM room_bookings rb JOIN users u ON u.id = rb.user_id
        WHERE rb.room_id = ? ORDER BY rb.start_at DESC`,
       [req.params.id],

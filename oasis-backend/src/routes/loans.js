@@ -5,12 +5,17 @@ import { authenticate, authorize } from '../middleware/auth.js';
 const router = express.Router();
 router.use(authenticate);
 
-router.post('/equipment', authorize('MAHASISWA', 'DOSEN'), async (req, res, next) => {
+router.post('/equipment', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
-    const { purpose, start_date, due_date, items } = req.body;
-    if (!purpose?.trim() || !start_date || !due_date || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: 'Tujuan, tanggal, dan daftar alat wajib diisi.' });
+    const { borrower_name, borrower_email, purpose, start_date, due_date, items } = req.body;
+    const borrowerName = typeof borrower_name === 'string' ? borrower_name.trim() : '';
+    const normalizedEmail = typeof borrower_email === 'string' ? borrower_email.trim().toLowerCase() : '';
+    if (!borrowerName || !normalizedEmail || typeof purpose !== 'string' || !purpose.trim() || !start_date || !due_date || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'Nama, email peminjam, tujuan, tanggal, dan daftar alat wajib diisi.' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({ message: 'Alamat email peminjam tidak valid.' });
     }
     const start = new Date(`${start_date}T00:00:00`);
     const due = new Date(`${due_date}T00:00:00`);
@@ -26,13 +31,14 @@ router.post('/equipment', authorize('MAHASISWA', 'DOSEN'), async (req, res, next
     const [lateRows] = await connection.execute(
       `SELECT COUNT(DISTINCT el.id) AS late_count
        FROM equipment_loans el
+       JOIN users u ON u.id = el.user_id
        JOIN loan_items li ON li.loan_id = el.id
-       WHERE el.user_id = ?
+       WHERE COALESCE(el.borrower_email, u.email) = ?
        AND (
          (li.returned_at IS NULL AND NOW() > CONCAT(el.due_date, ' 23:59:59'))
          OR (li.returned_at IS NOT NULL AND li.returned_at > CONCAT(el.due_date, ' 23:59:59'))
        )`,
-      [req.user.sub],
+      [normalizedEmail],
     );
     if (Number(lateRows[0].late_count) >= 2) {
       throw Object.assign(
@@ -60,10 +66,12 @@ router.post('/equipment', authorize('MAHASISWA', 'DOSEN'), async (req, res, next
 
     const [loan] = await connection.execute(
       `INSERT INTO equipment_loans
-       (user_id, loan_type, purpose, start_date, due_date, status)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+       (user_id, borrower_name, borrower_email, loan_type, purpose, start_date, due_date, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         req.user.sub,
+        borrowerName,
+        normalizedEmail,
         hasSpecialItem ? 'KHUSUS' : 'BIASA',
         purpose.trim(),
         start_date,
@@ -94,8 +102,8 @@ router.post('/equipment', authorize('MAHASISWA', 'DOSEN'), async (req, res, next
     await connection.commit();
     res.status(201).json({
       message: hasSpecialItem
-        ? 'Pengajuan khusus dikirim untuk persetujuan dosen pengampu.'
-        : 'Pengajuan alat dikirim kepada laboran.',
+        ? 'Permohonan alat khusus berhasil dicatat untuk ditinjau pengelola lab.'
+        : 'Permohonan alat berhasil dicatat untuk ditinjau pengelola lab.',
       id: loan.insertId,
     });
   } catch (error) {

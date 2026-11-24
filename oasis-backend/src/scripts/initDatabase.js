@@ -17,5 +17,17 @@ await connection.query(
   `ALTER TABLE approvals
    MODIFY COLUMN approver_role ENUM('DOSEN_PENGAMPU','LABORAN','KEPALA_LABORATORIUM') NOT NULL`,
 );
+for (const table of ['room_bookings', 'equipment_loans']) {
+  for (const column of ['borrower_name', 'borrower_email']) {
+    const [existingColumns] = await connection.execute(
+      `SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+      [database, table, column],
+    );
+    if (existingColumns.length === 0) {
+      await connection.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` VARCHAR(150) NULL`);
+    }
+  }
+}
 await connection.end();
 console.log(`Database ${database} berhasil disiapkan.`);
