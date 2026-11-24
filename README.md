@@ -24,7 +24,7 @@ JWT_EXPIRES_IN=8h
 
 The API listens on Railway's `PORT` and binds to `0.0.0.0`. Its `/health` endpoint checks the database connection.
 
-The backend runs `npm run db:init` before starting to create missing database tables. It uses `CREATE ... IF NOT EXISTS`, so it does not delete existing data, and it does not create student accounts or import old data. To create an initial lab-head account in an empty database, temporarily set `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL`, and `BOOTSTRAP_ADMIN_PASSWORD` in Railway, then run `npm run db:bootstrap-admin`. The password must be at least 12 characters; remove those temporary variables afterwards.
+Before starting, the backend runs `npm run db:init` to create missing database tables. It uses `CREATE ... IF NOT EXISTS` and does not delete existing data. It then checks for all three `BOOTSTRAP_ADMIN_*` variables: if set and the `users` table is empty, it creates the initial lab-head account; if unset or users already exist, it logs that bootstrap was skipped. Set `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL`, and `BOOTSTRAP_ADMIN_PASSWORD` in Railway to create the account on the next deployment. The password must be at least 12 characters. Remove these temporary variables after the account is created. This does not create student accounts or import old data.
 
 Once deployed, open the API service's public HTTPS domain directly to see the website. Railway uses `/health/live` to verify that the server is running; `/health` checks the database and reports its readiness. The web app defaults to the same-origin `/api` on a public domain; no separate Web service or `EXPO_PUBLIC_API_URL` is required.
 

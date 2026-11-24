@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "npm run db:init && node src/server.js",
+    "start": "npm run db:init && npm run db:bootstrap-admin && node src/server.js",
     "db:init": "node src/scripts/initDatabase.js",
     "db:bootstrap-admin": "node src/scripts/bootstrapAdmin.js"
   },
