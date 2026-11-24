@@ -83,7 +83,10 @@ router.post('/equipment', authorize('MAHASISWA', 'DOSEN'), async (req, res, next
       await connection.execute(
         `INSERT INTO approvals (loan_id, approver_id, approver_role, decision)
          SELECT ?, u.id, 'DOSEN_PENGAMPU', 'MENUNGGU'
-         FROM users u WHERE u.role = 'DOSEN_PENGAMPU' AND u.active = TRUE LIMIT 1`,
+         FROM users u
+         WHERE u.role IN ('LABORAN', 'KEPALA_LABORATORIUM') AND u.active = TRUE
+         ORDER BY u.id
+         LIMIT 1`,
         [loan.insertId],
       );
     }
@@ -127,7 +130,7 @@ router.get('/my', async (req, res, next) => {
   }
 });
 
-router.post('/:loanId/handover', authorize('LABORAN'), async (req, res, next) => {
+router.post('/:loanId/handover', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -163,7 +166,7 @@ router.post('/:loanId/handover', authorize('LABORAN'), async (req, res, next) =>
   }
 });
 
-router.post('/:loanId/return', authorize('LABORAN'), async (req, res, next) => {
+router.post('/:loanId/return', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
     const { unit_id, condition } = req.body;

@@ -16,6 +16,17 @@ function getApiBaseUrl() {
 
 let authToken: string | null = null;
 
+export function getDashboardRole(role: string) {
+  const roles: Record<string, string> = {
+    MAHASISWA: 'mahasiswa',
+    DOSEN: 'dosen',
+    DOSEN_PENGAMPU: 'dosen_pengampu',
+    LABORAN: 'laboran',
+    KEPALA_LABORATORIUM: 'kepala_lab',
+  };
+  return roles[role.toUpperCase()] || role.toLowerCase();
+}
+
 export function setAuthToken(token: string | null) {
   authToken = token;
 }

@@ -9,6 +9,9 @@ export function authenticate(req, res, next) {
 
   try {
     req.user = jwt.verify(header.slice(7), process.env.JWT_SECRET);
+    if (!['LABORAN', 'KEPALA_LABORATORIUM'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Portal ini hanya dapat diakses admin dan penjaga laboratorium.' });
+    }
     next();
   } catch {
     res.status(401).json({ message: 'Token tidak valid atau telah kedaluwarsa.' });

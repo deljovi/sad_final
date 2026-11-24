@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/hooks/use-theme';
-import { apiRequest, setAuthToken } from '@/lib/api';
+import { apiRequest, getDashboardRole, setAuthToken } from '@/lib/api';
 
 type LoginResponse = {
   token: string;
@@ -62,7 +62,7 @@ export default function HomeScreen() {
       setAuthToken(result.token);
       router.replace({
         pathname: '/dashboard',
-        params: { role: result.user.role, name: result.user.name },
+        params: { role: getDashboardRole(result.user.role), name: result.user.name },
       });
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Tidak dapat masuk ke LabSpace.');

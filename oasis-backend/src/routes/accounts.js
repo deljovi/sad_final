@@ -9,7 +9,7 @@ router.use(authenticate);
 router.post('/', authorize('KEPALA_LABORATORIUM'), async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
-    const allowedRoles = ['MAHASISWA', 'DOSEN', 'DOSEN_PENGAMPU', 'LABORAN', 'KEPALA_LABORATORIUM'];
+    const allowedRoles = ['LABORAN', 'KEPALA_LABORATORIUM'];
     if (!name || !email || !password || !allowedRoles.includes(role)) {
       return res.status(400).json({ message: 'Data akun atau role tidak valid.' });
     }

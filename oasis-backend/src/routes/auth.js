@@ -20,6 +20,9 @@ router.post('/login', async (req, res, next) => {
     if (!user || !user.active || !(await bcrypt.compare(password, user.password_hash))) {
       return res.status(401).json({ message: 'Email atau kata sandi tidak valid.' });
     }
+    if (!['LABORAN', 'KEPALA_LABORATORIUM'].includes(user.role)) {
+      return res.status(403).json({ message: 'Portal ini hanya dapat diakses admin dan penjaga laboratorium.' });
+    }
     const token = jwt.sign(
       { sub: user.id, role: user.role, name: user.name },
       process.env.JWT_SECRET,

@@ -67,7 +67,6 @@ type Report = {
   equipment_loans: number;
   equipment: { available: number; borrowed: number; damaged: number; lost: number };
 };
-
 const statusNames: Record<string, string> = {
   MENUNGGU: 'Menunggu',
   MENUNGGU_DOSEN: 'Menunggu persetujuan dosen',
@@ -87,8 +86,6 @@ const statusNames: Record<string, string> = {
 };
 
 const roleNames: Record<string, string> = {
-  mahasiswa: 'Mahasiswa',
-  dosen: 'Dosen',
   kepala_lab: 'Kepala Laboratorium',
   laboran: 'Laboran',
 };
@@ -228,14 +225,16 @@ export default function FeatureScreen() {
     return () => clearTimeout(timer);
   }, [loadData, paramsReady]);
 
-  async function perform(action: () => Promise<unknown>, successMessage: string) {
+  async function perform(action: () => Promise<unknown>, successMessage: string): Promise<boolean> {
     setBusy(true);
     try {
       await action();
       showMessage('Berhasil', successMessage);
       await loadData();
+      return true;
     } catch (actionError) {
       showMessage('Tindakan gagal', actionError instanceof Error ? actionError.message : 'Terjadi kesalahan.');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -252,14 +251,14 @@ export default function FeatureScreen() {
       showMessage('Waktu tidak valid', 'Pastikan tanggal dan rentang waktu yang dimasukkan valid.');
       return;
     }
-    await perform(
+    const succeeded = await perform(
       () => apiRequest(`/rooms/${selectedRoom}/bookings`, {
         method: 'POST',
         body: { start_at: start.toISOString(), end_at: end.toISOString(), purpose: purpose.trim() },
       }),
       'Pengajuan ruang telah dikirim.',
     );
-    setPurpose('');
+    if (succeeded) setPurpose('');
   }
 
   async function submitEquipmentLoan() {
@@ -267,7 +266,7 @@ export default function FeatureScreen() {
       showMessage('Form belum lengkap', 'Pilih minimal satu unit dan lengkapi tanggal serta tujuan.');
       return;
     }
-    await perform(
+    const succeeded = await perform(
       () => apiRequest('/loans/equipment', {
         method: 'POST',
         body: {
@@ -279,8 +278,10 @@ export default function FeatureScreen() {
       }),
       'Pengajuan alat telah dikirim.',
     );
-    setLoanPurpose('');
-    setSelectedUnits([]);
+    if (succeeded) {
+      setLoanPurpose('');
+      setSelectedUnits([]);
+    }
   }
 
   const cardStyle = { backgroundColor: theme.backgroundElement, borderColor: theme.border };
@@ -528,7 +529,9 @@ export default function FeatureScreen() {
   }
 
   function loanList({ admin = false, specialOnly = false }: { admin?: boolean; specialOnly?: boolean } = {}) {
-    const visible = loans.filter((loan) => (!specialOnly || loan.loan_type === 'KHUSUS') && (!admin || ['MENUNGGU_LABORAN', 'MENUNGGU_DOSEN'].includes(loan.status)));
+    const visible = loans.filter((loan) =>
+      (!specialOnly || (loan.loan_type === 'KHUSUS' && loan.status === 'MENUNGGU_DOSEN'))
+      && (!admin || ['MENUNGGU_LABORAN', 'MENUNGGU_DOSEN'].includes(loan.status)));
     if (!visible.length) return empty();
     return (
       <View style={styles.stack}>
@@ -642,14 +645,16 @@ export default function FeatureScreen() {
           <Text style={[styles.cardTitle, { color: theme.text }]}>Tambah ruang</Text>
           {field({ label: 'Nama ruang', value: roomName, onChange: setRoomName, placeholder: 'Contoh: Lab Multimedia' })}
           {field({ label: 'Kapasitas', value: roomCapacity, onChange: setRoomCapacity, placeholder: '30', type: 'numeric' })}
-          {button({ label: 'Simpan ruang', onPress: () => {
+          {button({ label: 'Simpan ruang', onPress: async () => {
             if (!roomName.trim()) return showMessage('Nama belum diisi', 'Masukkan nama ruang.');
-            perform(
+            const succeeded = await perform(
               () => apiRequest('/rooms', { method: 'POST', body: { name: roomName.trim(), capacity: roomCapacity ? Number(roomCapacity) : null } }),
               'Ruang berhasil ditambahkan.',
             );
-            setRoomName('');
-            setRoomCapacity('');
+            if (succeeded) {
+              setRoomName('');
+              setRoomCapacity('');
+            }
           } })}
         </View>
         {roomList({ management: true })}
@@ -672,14 +677,16 @@ export default function FeatureScreen() {
             ))}
           </View>
           {field({ label: 'Keterangan', value: equipmentDescription, onChange: setEquipmentDescription, placeholder: 'Deskripsi singkat (opsional)' })}
-          {button({ label: 'Tambah jenis alat', onPress: () => {
+          {button({ label: 'Tambah jenis alat', onPress: async () => {
             if (!equipmentName.trim()) return showMessage('Nama belum diisi', 'Masukkan nama jenis alat.');
-            perform(
+            const succeeded = await perform(
               () => apiRequest('/equipment/types', { method: 'POST', body: { name: equipmentName.trim(), category: equipmentCategory, description: equipmentDescription.trim() } }),
               'Jenis alat berhasil ditambahkan.',
             );
-            setEquipmentName('');
-            setEquipmentDescription('');
+            if (succeeded) {
+              setEquipmentName('');
+              setEquipmentDescription('');
+            }
           } })}
         </View>
         <View style={[styles.formCard, cardStyle]}>
@@ -693,13 +700,13 @@ export default function FeatureScreen() {
             ))}
           </View>
           {field({ label: 'Kode unit', value: unitCode, onChange: setUnitCode, placeholder: 'Contoh: CAM-001' })}
-          {button({ label: 'Simpan unit', disabled: !equipment.length, onPress: () => {
+          {button({ label: 'Simpan unit', disabled: !equipment.length, onPress: async () => {
             if (!selectedTypeId || !unitCode.trim()) return showMessage('Data belum lengkap', 'Pilih jenis alat dan masukkan kode unit.');
-            perform(
+            const succeeded = await perform(
               () => apiRequest('/equipment/units', { method: 'POST', body: { equipment_type_id: selectedTypeId, unit_code: unitCode.trim() } }),
               'Unit alat berhasil ditambahkan.',
             );
-            setUnitCode('');
+            if (succeeded) setUnitCode('');
           } })}
         </View>
         {equipmentList({ management: true })}

@@ -4,11 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useHydrated } from '@/hooks/use-hydrated';
 import { useTheme } from '@/hooks/use-theme';
-import { setAuthToken } from '@/lib/api';
+import { getDashboardRole, setAuthToken } from '@/lib/api';
 
 const roleNames: Record<string, string> = {
-  mahasiswa: 'Mahasiswa',
-  dosen: 'Dosen',
   kepala_lab: 'Kepala Laboratorium',
   laboran: 'Laboran',
 };
@@ -32,10 +30,10 @@ export default function DashboardScreen() {
   const theme = useTheme();
   const params = useLocalSearchParams<{ role?: string; name?: string }>();
   const paramsReady = useHydrated();
-  const role = paramsReady ? String(params.role || 'mahasiswa') : 'mahasiswa';
+  const role = paramsReady ? getDashboardRole(String(params.role || 'laboran')) : 'laboran';
   const displayName = paramsReady
     ? String(params.name || roleNames[role] || 'Pengguna')
-    : roleNames.mahasiswa;
+    : roleNames.laboran;
   const firstName = displayName.split(' ')[0];
   const initials = displayName
     .split(/\s+/)
@@ -44,14 +42,17 @@ export default function DashboardScreen() {
     .map((part) => part[0])
     .join('')
     .toUpperCase();
-  const menus: string[] =
-    role === 'mahasiswa'
-      ? ['Ketersediaan Ruang', 'Ketersediaan Alat', 'Ajukan Peminjaman', 'Status Pengajuan', 'Riwayat Peminjaman']
-      : role === 'dosen'
-        ? ['Ketersediaan Ruang', 'Ketersediaan Alat', 'Ajukan Peminjaman', 'Status Pengajuan', 'Riwayat Peminjaman']
-        : role === 'laboran'
-          ? ['Permohonan Peminjaman', 'Serah Terima Alat', 'Pengembalian & Pemeriksaan', 'Kelola Ruang', 'Kelola Alat', 'Laporan Bulanan']
-          : ['Permohonan Peminjaman', 'Persetujuan Khusus', 'Serah Terima Alat', 'Pengembalian & Pemeriksaan', 'Kelola Ruang', 'Kelola Alat', 'Laporan Bulanan'];
+  const menus: string[] = ['laboran', 'kepala_lab'].includes(role)
+    ? [
+        'Permohonan Peminjaman',
+        'Persetujuan Khusus',
+        'Serah Terima Alat',
+        'Pengembalian & Pemeriksaan',
+        'Kelola Ruang',
+        'Kelola Alat',
+        'Laporan Bulanan',
+      ]
+    : [];
 
   function openMenu(menu: string) {
     router.push({ pathname: '/feature', params: { title: menu, role } });

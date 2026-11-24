@@ -56,7 +56,12 @@ router.post('/', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (req, res, n
 
 router.patch('/:id/status', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (req, res, next) => {
   try {
-    await pool.execute('UPDATE rooms SET active = ? WHERE id = ?', [req.body.active === true, req.params.id]);
+    if (typeof req.body.active !== 'boolean') {
+      return res.status(400).json({ message: 'Status ruang tidak valid.' });
+    }
+    const [rooms] = await pool.execute('SELECT id FROM rooms WHERE id = ?', [req.params.id]);
+    if (!rooms[0]) return res.status(404).json({ message: 'Ruang tidak ditemukan.' });
+    await pool.execute('UPDATE rooms SET active = ? WHERE id = ?', [req.body.active, req.params.id]);
     res.json({ message: 'Status ruang diperbarui.' });
   } catch (error) {
     next(error);

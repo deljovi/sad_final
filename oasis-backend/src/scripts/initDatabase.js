@@ -13,5 +13,9 @@ await connection.query(`CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER 
 await connection.changeUser({ database });
 const sql = await fs.readFile(new URL('../../database/schema.sql', import.meta.url), 'utf8');
 await connection.query(sql);
+await connection.query(
+  `ALTER TABLE approvals
+   MODIFY COLUMN approver_role ENUM('DOSEN_PENGAMPU','LABORAN','KEPALA_LABORATORIUM') NOT NULL`,
+);
 await connection.end();
 console.log(`Database ${database} berhasil disiapkan.`);
