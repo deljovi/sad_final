@@ -211,7 +211,9 @@ export default function FeatureScreen() {
       if (['Status Pengajuan', 'Riwayat Peminjaman'].includes(title)) {
         tasks.push(apiRequest<Loan[]>('/loans/my').then(setLoans));
       }
-      if (['Permohonan Alat', 'Permohonan Peminjaman', 'Persetujuan Khusus', 'Serah Terima Alat', 'Pengembalian & Pemeriksaan'].includes(title)) {
+      if (title === 'Persetujuan Khusus') {
+        tasks.push(apiRequest<Loan[]>('/approvals/special').then(setLoans));
+      } else if (['Permohonan Alat', 'Permohonan Peminjaman', 'Serah Terima Alat', 'Pengembalian & Pemeriksaan'].includes(title)) {
         tasks.push(apiRequest<Loan[]>('/approvals').then(setLoans));
       }
       if (title === 'Laporan Bulanan') {
@@ -588,7 +590,7 @@ export default function FeatureScreen() {
 
   function loanList({ admin = false, specialOnly = false }: { admin?: boolean; specialOnly?: boolean } = {}) {
     const visible = loans.filter((loan) =>
-      (!specialOnly || (loan.loan_type === 'KHUSUS' && loan.status === 'MENUNGGU_DOSEN'))
+      (!specialOnly || loan.status === 'MENUNGGU_DOSEN')
       && (!admin || ['MENUNGGU_LABORAN', 'MENUNGGU_DOSEN'].includes(loan.status)));
     if (!visible.length) return empty();
     return (

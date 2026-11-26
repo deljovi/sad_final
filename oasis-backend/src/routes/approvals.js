@@ -42,6 +42,39 @@ router.get('/', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (_req, res, n
   }
 });
 
+router.get('/special', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (_req, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT el.*, COALESCE(el.borrower_name, u.name) AS applicant_name,
+              COALESCE(el.borrower_email, u.email) AS applicant_email,
+              (SELECT JSON_ARRAYAGG(JSON_OBJECT(
+                'unit_id', li.unit_id,
+                'unit_code', eu.unit_code,
+                'equipment_name', et.name,
+                'returned_at', li.returned_at,
+                'return_condition', li.return_condition
+              ))
+               FROM loan_items li
+               JOIN equipment_units eu ON eu.id = li.unit_id
+               JOIN equipment_types et ON et.id = eu.equipment_type_id
+               WHERE li.loan_id = el.id) AS items
+       FROM equipment_loans el JOIN users u ON u.id = el.user_id
+       WHERE el.status = 'MENUNGGU_DOSEN'
+       AND EXISTS (
+         SELECT 1
+         FROM loan_items li
+         JOIN equipment_units eu ON eu.id = li.unit_id
+         JOIN equipment_types et ON et.id = eu.equipment_type_id
+         WHERE li.loan_id = el.id AND et.category = 'KHUSUS'
+       )
+       ORDER BY el.created_at`,
+    );
+    res.json(rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/:loanId/approve', authorize('LABORAN', 'KEPALA_LABORATORIUM'), async (req, res, next) => {
   try {
     const { note } = req.body;
