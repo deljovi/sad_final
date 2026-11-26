@@ -106,7 +106,6 @@ const featureDescriptions: Record<string, string> = {
   'Permohonan Ruang': 'Catat dan proses permohonan ruang atas nama calon peminjam.',
   'Permohonan Alat': 'Catat dan proses permohonan alat atas nama calon peminjam.',
   'Permohonan Peminjaman': 'Tinjau permohonan ruang dan peralatan dari pengguna.',
-  'Persetujuan Khusus': 'Tinjau permohonan peminjaman peralatan khusus.',
   'Serah Terima Alat': 'Catat penyerahan alat yang telah disetujui.',
   'Pengembalian & Pemeriksaan': 'Catat pengembalian dan kondisi peralatan lab.',
   'Kelola Ruang': 'Atur daftar ruang dan status ketersediaan laboratorium.',
@@ -211,9 +210,7 @@ export default function FeatureScreen() {
       if (['Status Pengajuan', 'Riwayat Peminjaman'].includes(title)) {
         tasks.push(apiRequest<Loan[]>('/loans/my').then(setLoans));
       }
-      if (title === 'Persetujuan Khusus') {
-        tasks.push(apiRequest<Loan[]>('/approvals/special').then(setLoans));
-      } else if (['Permohonan Alat', 'Permohonan Peminjaman', 'Serah Terima Alat', 'Pengembalian & Pemeriksaan'].includes(title)) {
+      if (['Permohonan Alat', 'Permohonan Peminjaman', 'Serah Terima Alat', 'Pengembalian & Pemeriksaan'].includes(title)) {
         tasks.push(apiRequest<Loan[]>('/approvals').then(setLoans));
       }
       if (title === 'Laporan Bulanan') {
@@ -588,10 +585,9 @@ export default function FeatureScreen() {
     );
   }
 
-  function loanList({ admin = false, specialOnly = false }: { admin?: boolean; specialOnly?: boolean } = {}) {
+  function loanList({ admin = false }: { admin?: boolean } = {}) {
     const visible = loans.filter((loan) =>
-      (!specialOnly || loan.status === 'MENUNGGU_DOSEN')
-      && (!admin || ['MENUNGGU_LABORAN', 'MENUNGGU_DOSEN'].includes(loan.status)));
+      !admin || ['MENUNGGU_LABORAN', 'MENUNGGU_DOSEN'].includes(loan.status));
     if (!visible.length) return empty();
     return (
       <View style={styles.stack}>
@@ -844,7 +840,6 @@ export default function FeatureScreen() {
         </View>
       );
     }
-    if (title === 'Persetujuan Khusus') return loanList({ admin: true, specialOnly: true });
     if (title === 'Serah Terima Alat') return handoverView();
     if (title === 'Pengembalian & Pemeriksaan') return returnView();
     if (title === 'Kelola Ruang') return roomManagement();

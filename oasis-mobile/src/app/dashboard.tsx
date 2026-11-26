@@ -19,7 +19,6 @@ const menuDetails: Record<string, { code: string; description: string; tint: str
   'Riwayat Peminjaman': { code: 'RJ', description: 'Tinjau peminjaman yang pernah dilakukan.', tint: '#E2F0FA' },
   'Permohonan Ruang': { code: 'RG', description: 'Catat dan proses pengajuan peminjaman ruang.', tint: '#DDF3EF' },
   'Permohonan Alat': { code: 'AL', description: 'Catat dan proses pengajuan peminjaman alat.', tint: '#E8EEFF' },
-  'Persetujuan Khusus': { code: 'PK', description: 'Proses persetujuan untuk peminjaman alat khusus.', tint: '#E9E5FA' },
   'Serah Terima Alat': { code: 'ST', description: 'Catat serah terima alat yang sudah disetujui.', tint: '#E2F0FA' },
   'Pengembalian & Pemeriksaan': { code: 'KB', description: 'Catat pengembalian dan kondisi peralatan.', tint: '#DDF3EF' },
   'Kelola Ruang': { code: 'RG', description: 'Atur data ruang dan jadwal laboratorium.', tint: '#E8EEFF' },
@@ -47,7 +46,6 @@ export default function DashboardScreen() {
     ? [
         'Permohonan Ruang',
         'Permohonan Alat',
-        'Persetujuan Khusus',
         'Serah Terima Alat',
         'Pengembalian & Pemeriksaan',
         'Kelola Ruang',
